@@ -1,0 +1,204 @@
+version: '3.8'
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-social_media}
+  REDIS_URL: redis://redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+  DEBUG: ${DEBUG:-false}
+  TWITTER_CLIENT_ID: ${TWITTER_CLIENT_ID:-}
+  TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET:-}
+  TWITTER_REDIRECT_URI: ${TWITTER_REDIRECT_URI:-http://localhost/api/v1/auth/twitter/callback}
+  PROXY_HTTP: ${PROXY_HTTP:-}
+  PROXY_HTTPS: ${PROXY_HTTPS:-}
+  TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+  TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+  DOWNLOAD_DIR: /app/downloads
+  TDL_PATH: /app/tdl
+  CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost"]}
+
+x-backend-volumes: &backend-volumes
+  - downloads_data:/app/downloads
+  - logs_data:/app/logs
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 10s
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: social_media_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-social_media}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-social_media}"]
+      <<: *healthcheck-defaults
+    networks:
+      - backend_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: social_media_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      <<: *healthcheck-defaults
+    networks:
+      - backend_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    image: social-media-backend:${VERSION:-latest}
+    restart: unless-stopped
+    environment: *backend-env
+    volumes: *backend-volumes
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      <<: *healthcheck-defaults
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend_network
+    deploy:
+      replicas: ${BACKEND_REPLICAS:-2}
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    image: social-media-frontend:${VERSION:-latest}
+    container_name: social_media_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      <<: *healthcheck-defaults
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - backend_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    image: social-media-backend:${VERSION:-latest}
+    container_name: social_media_celery_worker
+    restart: unless-stopped
+    environment: *backend-env
+    volumes: *backend-volumes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend_network
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-4}
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    image: social-media-backend:${VERSION:-latest}
+    container_name: social_media_celery_beat
+    restart: unless-stopped
+    environment: *backend-env
+    volumes:
+      - celery_beat_data:/app/celerybeat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend_network
+    command: celery -A app.core.celery_app beat --loglevel=info --schedule=/app/celerybeat/celerybeat-schedule
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  downloads_data:
+    driver: local
+  logs_data:
+    driver: local
+  celery_beat_data:
+    driver: local
+
+networks:
+  backend_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
