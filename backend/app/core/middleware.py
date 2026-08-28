@@ -24,7 +24,7 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
                     message=exc.message,
                     error_code=exc.error_code,
                     details=exc.details,
-                ).model_dump(),
+                ).model_dump(mode="json"),
             )
         except Exception as exc:
             import traceback
@@ -45,7 +45,7 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
                     message="服务器内部错误" if not settings.DEBUG else str(exc),
                     error_code="INTERNAL_SERVER_ERROR",
                     details=error_details,
-                ).model_dump(),
+                ).model_dump(mode="json"),
             )
 
 

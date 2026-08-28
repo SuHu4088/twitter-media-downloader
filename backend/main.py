@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import (
@@ -40,7 +40,7 @@ app = FastAPI(
 
 setup_middlewares(app)
 
-api_v1_router = FastAPI()
+api_v1_router = APIRouter()
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(twitter_router)
 api_v1_router.include_router(twitter_oauth_router)
