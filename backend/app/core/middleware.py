@@ -18,13 +18,14 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
         try:
             return await call_next(request)
         except AppException as exc:
+            # mode="json" 将 datetime 等字段转为 JSON 可序列化类型，避免 ErrorResponse 返回 500
             return JSONResponse(
                 status_code=exc.status_code,
                 content=ErrorResponse(
                     message=exc.message,
                     error_code=exc.error_code,
                     details=exc.details,
-                ).model_dump(),
+                ).model_dump(mode="json"),
             )
         except Exception as exc:
             import traceback
@@ -39,13 +40,14 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
                     "error_type": type(exc).__name__,
                 }
 
+            # mode="json" 将 datetime 等字段转为 JSON 可序列化类型，避免 ErrorResponse 返回 500
             return JSONResponse(
                 status_code=500,
                 content=ErrorResponse(
                     message="服务器内部错误" if not settings.DEBUG else str(exc),
                     error_code="INTERNAL_SERVER_ERROR",
                     details=error_details,
-                ).model_dump(),
+                ).model_dump(mode="json"),
             )
 
 

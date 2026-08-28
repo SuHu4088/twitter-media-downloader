@@ -8,12 +8,12 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
+# 必须使用 app.core.database.Base，模型表元数据注册在此 Base 上
+from app.core.database import Base
 from app.models.base import TimestampMixin, UUIDMixin
 from app.models.dedup_record import DedupRecord
 from app.models.media_file import MediaFile
@@ -23,12 +23,7 @@ from app.models.twitter_user import TwitterUser
 from app.models.user import User
 
 
-class Base(DeclarativeBase):
-    pass
-
-
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
@@ -55,22 +50,12 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
+    """每个测试函数使用独立内存库：建表 → yield session → rollback → 删表。"""
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with TestSessionLocal() as session:
-        connection = await session.connection()
-
-        @event.listens_for(connection, "begin")
-        def begin(conn: Any) -> None:
-            conn.execute("SAVEPOINT test_savepoint")
-
         yield session
-
-        @event.listens_for(connection, "rollback")
-        def rollback(conn: Any) -> None:
-            conn.execute("ROLLBACK TO SAVEPOINT test_savepoint")
-
         await session.rollback()
 
     async with test_engine.begin() as conn:

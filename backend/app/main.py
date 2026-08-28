@@ -1,7 +1,19 @@
+"""
+Social Media Downloader API 应用入口。
+
+路由结构：
+  - 根路径 /health、/ 挂载在本 app 上
+  - 业务 API 统一挂在 /api/v1 下（auth、twitter、tasks、media 等）
+
+启动命令（在 backend 目录）：
+  uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+与 docker-compose / Dockerfile 中的 app.main:app 保持一致。
+"""
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import (
@@ -40,7 +52,8 @@ app = FastAPI(
 
 setup_middlewares(app)
 
-api_v1_router = FastAPI()
+# 使用 APIRouter 聚合 v1 子路由；勿用 FastAPI() 子应用，新版 FastAPI 的 include_router 不支持
+api_v1_router = APIRouter()
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(twitter_router)
 api_v1_router.include_router(twitter_oauth_router)

@@ -1,6 +1,8 @@
 import asyncio
 import os
 import uuid
+# 类型注解须用 Callable，勿用内置 callable（会与 None 做位运算导致 import 阶段 TypeError）
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -164,7 +166,7 @@ class DownloadService:
         urls: list[str],
         save_dir: str,
         max_concurrent: int = 5,
-        filename_generator: callable | None = None,
+        filename_generator: Callable | None = None,
     ) -> BatchDownloadResult:
         ensure_dir(save_dir)
         
@@ -357,7 +359,7 @@ class DownloadService:
         self,
         url: str,
         save_path: str,
-        progress_callback: callable | None = None,
+        progress_callback: Callable | None = None,
     ) -> DownloadResult:
         if self._client is None:
             await self.start()
@@ -460,7 +462,7 @@ class DownloadService:
         tweet_id: str | None = None,
         max_concurrent: int = 5,
         skip_duplicate: bool = True,
-        filename_generator: callable | None = None,
+        filename_generator: Callable | None = None,
     ) -> BatchDownloadResult:
         ensure_dir(save_dir)
 

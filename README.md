@@ -189,7 +189,7 @@ pip install -r requirements.txt
 alembic upgrade head
 
 # 启动开发服务器
-uvicorn main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 
 # 启动 Celery Worker（新终端）
 celery -A app.core.celery_app worker --loglevel=info
@@ -436,7 +436,7 @@ docker-compose -f docker-compose.prod.yml logs -f
    cd backend
    pip install -r requirements.txt
    alembic upgrade head
-   gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
+   gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
    ```
 
 2. **前端部署**
