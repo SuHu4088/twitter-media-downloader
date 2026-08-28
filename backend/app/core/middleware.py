@@ -18,6 +18,7 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
         try:
             return await call_next(request)
         except AppException as exc:
+            # mode="json" 将 datetime 等字段转为 JSON 可序列化类型，避免 ErrorResponse 返回 500
             return JSONResponse(
                 status_code=exc.status_code,
                 content=ErrorResponse(
@@ -39,6 +40,7 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
                     "error_type": type(exc).__name__,
                 }
 
+            # mode="json" 将 datetime 等字段转为 JSON 可序列化类型，避免 ErrorResponse 返回 500
             return JSONResponse(
                 status_code=500,
                 content=ErrorResponse(

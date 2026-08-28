@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Idempotent per-boot startup: brings up PostgreSQL + Redis, ensures the
-# database exists, and applies migrations. Safe to run repeatedly.
+# =============================================================================
+# Cloud Agent / 本地开发：每次启动环境时执行的脚本（可重复执行，幂等）
+#
+# 作用：
+#   1. 启动 PostgreSQL 与 Redis（无 systemd 时用 pg_ctlcluster / redis-server）
+#   2. 确保 postgres 用户密码与 social_media 数据库存在
+#   3. 执行 alembic upgrade head 应用数据库迁移
+#
+# 用法：先运行 install.sh，再运行本脚本，最后在 terminals 中启动前后端
+# =============================================================================
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

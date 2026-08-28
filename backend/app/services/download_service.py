@@ -1,6 +1,7 @@
 import asyncio
 import os
 import uuid
+# 类型注解须用 Callable，勿用内置 callable（会与 None 做位运算导致 import 阶段 TypeError）
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
